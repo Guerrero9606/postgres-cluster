@@ -2,26 +2,36 @@ version: '3.9'
 
 services:
   master:
-    image: postgres:15
+    build:
+      context: ./master
+      dockerfile: Dockerfile  # Se asume que el Dockerfile para el master está en ./master/Dockerfile
+    container_name: postgres-cluster-master
     environment:
       POSTGRES_USER: cluster
       POSTGRES_PASSWORD: Admin123
       POSTGRES_DB: test_cluster
-      POSTGRES_HOST_AUTH_METHOD: "trust"
     volumes:
       - pgdata_master:/var/lib/postgresql/data
+      - ./config/master/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./config/master/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./master/scripts/init-replicator-role.sh:/docker-entrypoint-initdb.d/init-replicator-role.sh
     networks:
-      - pg_network
+      pg_network:
+        ipv4_address: 172.18.0.2
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U myuser"]
+      test: ["CMD-SHELL", "pg_isready -U cluster -d test_cluster"]
       interval: 30s
       timeout: 10s
       retries: 5
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
 
   replica:
-    image: postgres:15
+    build:
+      context: ./replica
+      dockerfile: Dockerfile  # Se asume que el Dockerfile para la réplica está en ./replica/Dockerfile
+    container_name: postgres-cluster-replica
     environment:
       POSTGRES_USER: cluster
       POSTGRES_PASSWORD: Admin123
@@ -31,17 +41,23 @@ services:
       POSTGRES_REPLICATION_PASSWORD: "replicatorpassword"
     volumes:
       - pgdata_replica:/var/lib/postgresql/data
+      - ./config/replica/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./config/replica/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./replica/scripts/replica-entrypoint.sh:/docker-entrypoint-initdb.d/replica-entrypoint.sh
     networks:
-      - pg_network
+      pg_network:
+        ipv4_address: 172.18.0.3
     depends_on:
       - master
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U myuser"]
+      test: ["CMD-SHELL", "pg_isready -U cluster -d test_cluster"]
       interval: 30s
       timeout: 10s
       retries: 5
+    entrypoint: ["/docker-entrypoint-initdb.d/replica-entrypoint.sh"]
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
 
 volumes:
   pgdata_master:
@@ -49,3 +65,4 @@ volumes:
 
 networks:
   pg_network:
+    external: true

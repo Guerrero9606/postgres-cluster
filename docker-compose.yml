@@ -81,7 +81,7 @@ services:
       - "5434:5432"
     volumes:
       - pgdata_monitor:/var/lib/postgresql/data
-    command: pg_autoctl create monitor --pgdata /var/lib/postgresql/data --auth trust
+    command: pg_autoctl create monitor --pgdata /var/lib/postgresql/data --auth trust --no-ssl
 
 volumes:
   pgdata_master:

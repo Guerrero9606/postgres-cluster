@@ -1,8 +1,9 @@
 FROM postgres:15
 
-# Instala pg_autoctl y otras dependencias necesarias
+# Instalacion de pg_autofailover
 RUN apt-get update && \
-    apt-get install -y postgresql-auto-failover-cli && \
+    apt-get install -y pg-auto-failover-cli && \
+    apt-get install -y postgresql-15-auto-failover && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copiar el script para crear el rol replicator

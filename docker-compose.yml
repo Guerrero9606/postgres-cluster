@@ -18,6 +18,8 @@ services:
     networks:
       pg_network:
         ipv4_address: 172.18.0.2
+    depends_on:
+      - monitor
     ports:
       - "5432:5432"
     healthcheck:
@@ -27,7 +29,7 @@ services:
       retries: 5
     command: >
       sh -c "
-      pg_autoctl create postgres --pgdata /var/lib/postgresql/data --auth trust --monitor postgres://cluster:Admin123@pg_auto_failover-monitor:5432/pg_auto_failover &&
+      pg_autoctl create postgres --hostname postgres-cluster-master --pgdata /var/lib/postgresql/data --auth trust --ssl-self-signed --monitor postgres://cluster:Admin123@pg_auto_failover-monitor:5432/pg_auto_failover --run &&
       postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
       "
 
@@ -64,16 +66,25 @@ services:
     entrypoint: ["/docker-entrypoint-initdb.d/replica-entrypoint.sh"]
     command: >
       sh -c "
-      pg_autoctl create postgres --pgdata /var/lib/postgresql/data --auth trust --monitor postgres://cluster:Admin123@pg_auto_failover-monitor:5432/pg_auto_failover && 
+      pg_autoctl create postgres --hostname postgres-cluster-replica --pgdata /var/lib/postgresql/data --auth trust --ssl-self-signed --monitor postgres://cluster:Admin123@pg_auto_failover-monitor:5432/pg_auto_failover --run && 
       postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
       "
 
   monitor:
-    image: citusdata/pg_auto_failover  # Imagen oficial para el monitor
+    #image: citusdata/pg_auto_failover  # Imagen oficial para el monitor
+    build:
+      context: ./pg_monitor
+      dockerfile: Dockerfile
     container_name: pg_auto_failover-monitor
     environment:
       POSTGRES_USER: cluster
       POSTGRES_PASSWORD: Admin123
+        #PG_AUTOCTL_PGDATA: /var/lib/postgresql/data
+        #PG_AUTOCTL_USE_TMUX: false
+        #NODE_NAME: monitor
+        #PG_AUTO_FAILOVER_MONITOR_PORT: 5432
+        #PG_AUTO_FAILOVER_REPLICA_CONNECTION_STRING: "host=postgres-cluster-replica user=cluster dbname=test_cluster"
+        #PG_AUTO_FAILOVER_MASTER_CONNECTION_STRING: "host=postgres-cluster-master user=cluster dbname=test_cluster"
     networks:
       pg_network:
         ipv4_address: 172.18.0.4
@@ -81,7 +92,11 @@ services:
       - "5434:5432"
     volumes:
       - pgdata_monitor:/var/lib/postgresql/data
-    command: pg_autoctl create monitor --pgdata /var/lib/postgresql/data --auth trust --no-ssl
+      - ./pg_monitor/scripts/permissions-monitor.sh:/docker-entrypoint-initdb.d/permissions-monitor.sh
+      - ./config/monitor/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./config/monitor/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: >
+     sh -c "postgres -c hba_file=/etc/postgresql/pg_hba.conf -c config_file=/etc/postgresql/postgresql.conf" 
 
 volumes:
   pgdata_master:

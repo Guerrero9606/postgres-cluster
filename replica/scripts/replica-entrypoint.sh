@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Esperar a que el master esté listo
-until pg_isready -h master -p 5432 -U replicator; do
+until pg_isready -h 172.18.0.2 -p 5432 -U replicator; do
   echo "Esperando a que el servidor maestro esté disponible..."
   sleep 2
 done

@@ -25,7 +25,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+    command: >
+      sh -c "
+      pg_autoctl create postgres --pgdata /var/lib/postgresql/data --auth trust --monitor postgres://cluster:Admin123@pg_auto_failover-monitor:5432/pg_auto_failover &&
+      postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+      "
 
   replica:
     build:
@@ -49,6 +53,7 @@ services:
         ipv4_address: 172.18.0.3
     depends_on:
       - master
+      - monitor
     ports:
       - "5433:5432"
     healthcheck:
@@ -57,11 +62,31 @@ services:
       timeout: 10s
       retries: 5
     entrypoint: ["/docker-entrypoint-initdb.d/replica-entrypoint.sh"]
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+    command: >
+      sh -c "
+      pg_autoctl create postgres --pgdata /var/lib/postgresql/data --auth trust --monitor postgres://cluster:Admin123@pg_auto_failover-monitor:5432/pg_auto_failover && 
+      postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+      "
+
+  monitor:
+    image: citusdata/pg_auto_failover  # Imagen oficial para el monitor
+    container_name: pg_auto_failover-monitor
+    environment:
+      POSTGRES_USER: cluster
+      POSTGRES_PASSWORD: Admin123
+    networks:
+      pg_network:
+        ipv4_address: 172.18.0.4
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata_monitor:/var/lib/postgresql/data
+    command: pg_autoctl create monitor --pgdata /var/lib/postgresql/data --auth trust
 
 volumes:
   pgdata_master:
   pgdata_replica:
+  pgdata_monitor:
 
 networks:
   pg_network:

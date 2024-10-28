@@ -1,32 +1,28 @@
 # Usa la imagen base de PostgreSQL 15
 FROM postgres:15
 
-# Instala las dependencias necesarias
+# Instalacion de pg_autofailover
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    wget \
-    lsb-release \
-    gnupg2 && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y pg-auto-failover-cli postgresql-contrib && \
+    apt-get install -y postgresql-15-auto-failover && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copiar el script para crear el rol replicator
+COPY ./scripts/init.sh /usr/local/bin/init.sh
+
+# Asegurarse de que el script tenga permisos de ejecución
+RUN chmod +x /usr/local/bin/init.sh
+
+RUN chown -R postgres:postgres /var/lib/postgresql/data
+RUN chmod 777 /var/lib/postgresql/data
 
 # Bypass initdb de un clúster "main"
 RUN echo 'create_main_cluster = false' > /etc/postgresql-common/createcluster.conf
 
-# Instala PostgreSQL 15 y pg_auto_failover
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    pg-auto-failover-cli \
-    postgresql-15-auto-failover && \
-    rm -rf /var/lib/apt/lists/*
+# Ejecuta PostgreSQL y el script en segundo plano
+# CMD ["sh", "-c", "/usr/local/bin/init-monitor.sh"]
 
-# Cambiar permisos del directorio de datos
-RUN mkdir -p /var/lib/postgresql/data && \
-    chown -R postgres:postgres /var/lib/postgresql/data && \
-    chmod 700 /var/lib/postgresql/data
-
-# Establecer el usuario de PostgreSQL
 USER postgres
 
-# Comando por defecto para ejecutar el monitor
-#CMD ["pg_autoctl", "monitor"]
-
+# Ejecuta initdb para inicializar el directorio de datos
+#RUN /usr/lib/postgresql/15/bin/initdb -D /var/lib/postgresql/data

@@ -7,10 +7,10 @@ RUN apt-get update && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copiar el script de replicación
-#COPY ./scripts/replica-entrypoint.sh /docker-entrypoint-initdb.d/replica-entrypoint.sh
+COPY ./scripts/replica-entrypoint.sh /docker-entrypoint-initdb.d/replica-entrypoint.sh
 
 # Asignar permisos de ejecución al script
-#RUN chmod +x /docker-entrypoint-initdb.d/replica-entrypoint.sh
+RUN chmod +x /docker-entrypoint-initdb.d/replica-entrypoint.sh
 
 RUN mkdir -p /var/lib/postgresql/data/node2 && \
     chown -R postgres:postgres /var/lib/postgresql/data && \

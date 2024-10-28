@@ -26,7 +26,6 @@ done
 # Iniciar PostgreSQL en modo réplica
 #exec postgres
 
-pg_autoctl create postgres --hostname postgres-cluster-replica --pgdata /var/lib/postgresql/data --auth trust --ssl-self-signed --monitor postgres://autoctl_node@172.18.0.4:5432/pg_auto_failover?sslmode=require --run
+postgres -c hba_file=/etc/postgresql/pg_hba.conf -c config_file=/etc/postgresql/postgresql.conf
 
-lsof /var/lib/postgresql/data
 #pg_ctl stop -D /var/lib/postgresql/data

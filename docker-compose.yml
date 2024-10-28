@@ -24,7 +24,7 @@ services:
     ports:
       - "5434:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cluster -d test_cluster"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -44,21 +44,22 @@ services:
       PG_DATA: /var/lib/postgresql/data/node1
     volumes:
       - pgdata_master:/var/lib/postgresql/data
-        #- ./config/master/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./config/master/postgresql.conf:/etc/postgresql/postgresql.conf
       - ./config/master/pg_hba.conf:/etc/postgresql/pg_hba.conf
-        #- ./master/scripts/init-replicator-role.sh:/docker-entrypoint-initdb.d/init-replicator-role.sh
+      - ./master/scripts/init-replicator-role.sh:/docker-entrypoint-initdb.d/init-replicator-role.sh
     networks:
       pg_network:
         ipv4_address: 172.18.0.2
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cluster -d test_cluster"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
       timeout: 10s
       retries: 5
         #entrypoint: ["/docker-entrypoint-initdb.d/init-replicator-role.sh"]
-    command: ["pg_autoctl", "create", "postgres", "--pgdata", "/var/lib/postgresql/data/node1", "--monitor", "postgres://autoctl_node@172.18.0.4:5432/pg_auto_failover", "--name", "master", "--auth", "trust", "--ssl-self-signed", "--run", "--candidate-priority", "1"]
+    command: >
+      sh -c "pg_autoctl create postgres --pgdata /var/lib/postgresql/data/node1 --monitor postgres://autoctl_node@172.18.0.4:5432/pg_auto_failover --name master --no-ssl --pg-hba-lan --auth trust --run --candidate-priority 1 && pg_autoctl do pgsetup update --pg-hba 'host all all 172.18.0.7/32 trust'"
 
   replica:
     build:
@@ -76,9 +77,9 @@ services:
       POSTGRES_REPLICATION_PASSWORD: "replicatorpassword"
     volumes:
       - pgdata_replica:/var/lib/postgresql/data
-        #- ./config/replica/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./config/replica/postgresql.conf:/etc/postgresql/postgresql.conf
       - ./config/replica/pg_hba.conf:/etc/postgresql/pg_hba.conf
-        #- ./replica/scripts/replica-entrypoint.sh:/docker-entrypoint-initdb.d/replica-entrypoint.sh
+      - ./replica/scripts/replica-entrypoint.sh:/docker-entrypoint-initdb.d/replica-entrypoint.sh
     networks:
       pg_network:
         ipv4_address: 172.18.0.3
@@ -88,12 +89,46 @@ services:
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cluster -d test_cluster"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
       timeout: 10s
       retries: 5
         #entrypoint: ["/docker-entrypoint-initdb.d/replica-entrypoint.sh"]
-    command: ["pg_autoctl", "create", "postgres", "--pgdata", "/var/lib/postgresql/data/node2", "--monitor", "postgres://autoctl_node@172.18.0.4:5432/pg_auto_failover", "--name", "replica", "--auth", "trust", "--ssl-self-signed", "--run"]
+    command: >
+      sh -c "pg_autoctl create postgres --pgdata /var/lib/postgresql/data/node2 --monitor postgres://autoctl_node@172.18.0.4:5432/pg_auto_failover --name replica --no-ssl --pg-hba-lan --auth trust --run && pg_autoctl do pgsetup update --pg-hba 'host all all 172.18.0.7/32 trust'"
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - 3000:3000
+    networks:
+      pg_network:
+        ipv4_address: 172.18.0.5
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      pg_network:
+        ipv4_address: 172.18.0.6
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    ports:
+      - 9187:9187
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:Admin123@172.18.0.2:5432/postgres?sslmode=disable"
+    links:
+      - master
+      - prometheus
+    depends_on:
+      - master
+    networks:
+      pg_network:
+        ipv4_address: 172.18.0.7
 
 volumes:
   pgdata_master:

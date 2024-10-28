@@ -14,6 +14,6 @@ done
 #  CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD 'replicatorpassword';
 #EOSQL
 
-pg_autoctl create postgres --hostname postgres-cluster-master --pgdata /var/lib/postgresql/data --auth trust --ssl-self-signed --monitor postgres://autoctl_node@172.18.0.4:5432/pg_auto_failover?sslmode=require --run
+postgres -c hba_file=/etc/postgresql/pg_hba.conf -c config_file=/etc/postgresql/postgresql.conf
 
 #pg_ctl stop -D /var/lib/postgresql/data
